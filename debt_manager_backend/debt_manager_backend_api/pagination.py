@@ -2,7 +2,7 @@ import logging
 from django.db.models import Sum
 from rest_framework import pagination
 from rest_framework.response import Response
-from .models import Transaction, Currency
+from .models import Transaction, CurrencyOwner
 from rest_framework import serializers
 
 lh = logging.getLogger('django')
@@ -14,8 +14,8 @@ class PagiantionWithBalance(pagination.PageNumberPagination):
     def get_current_currency(self):
         user = self.request.user
         try:
-            currency = Currency.objects.get(owner=user, current=True)
-        except Currency.DoesNotExist:
+            currency = CurrencyOwner.objects.get(owner=user, current=True).currency
+        except CurrencyOwner.DoesNotExist:
             lh.warning('active currency not configured for user')
             raise serializers.ValidationError('active currency not configured for user')
         return currency.name

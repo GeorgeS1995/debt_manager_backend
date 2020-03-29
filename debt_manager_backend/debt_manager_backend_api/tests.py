@@ -1,8 +1,8 @@
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from oauth2_provider.models import AccessToken, Application
 from django.utils import timezone
-from .models import Currency, Debtor, Transaction
+from .models import Currency, Debtor, Transaction, CurrencyOwner
 from rest_framework.reverse import reverse
 from rest_framework import status
 import shutil
@@ -11,6 +11,10 @@ import mimetypes
 import os
 from django.conf import settings
 import xlrd
+from django.core import mail
+import re
+
+User = get_user_model()
 
 
 # Create your tests here.
@@ -69,8 +73,11 @@ class ApiUserTestClient(APITestCase):
 
         cls.client.force_authenticate(user=cls.user, token=cls.access_token.token)
 
-        currency = Currency.objects.create(name='руб', owner_id=1, current=True)
+        currency = Currency.objects.create(name='руб')
         currency.save()
+
+        currency_owner = CurrencyOwner.objects.create(currency=currency, owner=cls.user, current=True)
+        currency_owner.save()
 
         debtor_name = ['test1', 'test2']
         for name in debtor_name:
@@ -253,7 +260,7 @@ class DebtorViewSetTestCase(ApiUserTestClient):
         self.assertEqual(response.data, self.list_debtors_page_2)
 
     def test_get_debtor_list_active_currency_not_set(self):
-        Currency.objects.filter(current=True).update(current=False)
+        CurrencyOwner.objects.filter(current=True).update(current=False)
         response = self.client.get(reverse('debtor-list'), {'page': 1, 'size': 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.active_currency_not_set_error)
@@ -463,3 +470,126 @@ class TransactionViewSetTestCase(ApiUserTestClient):
         response = self.client.get(reverse('debtor-transaction-list', args=(1,)), {'page': 1, 'size': 2})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, self.transaction_list_delete)
+
+
+class RegisterTestCase(ApiUserTestClient):
+
+    def setUp(self):
+        super().setUp()
+
+        self.new_user = [{
+            "username": "test3",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "test3@example.com",
+            "password1": "SlojniyParol123",
+            "password2": "SlojniyParol123",
+            "currency": "dollars"
+        },{
+            "username": "test4",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "tes4@example.com",
+            "password1": "SlojniyParol123",
+            "password2": "SlojniyParol123",
+            "currency": "руб"
+        }]
+
+        self.different_password = {
+            "username": "test3",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "test@example.com",
+            "password1": "SlojniyParol123",
+            "password2": "SlojniyParol1234",
+            "currency": "dollars"
+        }
+
+        self.weak_password = {
+            "username": "test3",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "test@example.com",
+            "password1": "123",
+            "password2": "123",
+            "currency": "dollars"
+        }
+
+        self.dublicate_email = {
+            "username": "test3",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "test@test.com",
+            "password1": "123",
+            "password2": "123",
+            "currency": "dollars"
+        }
+
+        self.dublicate_email_error = {
+                                        "email": [
+                                            "user with this email already exists."
+                                        ]
+                                    }
+
+        self.different_password_error = {
+            "non_field_errors": [
+                "Passwords do not match"
+            ]
+        }
+
+        self.weak_password_error = {
+            "non_field_errors": [
+                "Unsuccessful attempt to register: ["
+                "'This password is too short. It must contain at least 8 characters.',"
+                " 'This password is too common.', 'This password is entirely numeric.']"
+            ]
+        }
+
+    def find_link(self, message):
+        regex = 'http:\/\/testserver\/api\/v1\/register\/activate\/' \
+                '(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+        register_link = re.findall(regex, message)
+        return register_link
+
+    def test_allowed_methods(self):
+        response = self.client.get(reverse('register-list'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.put(reverse('register-list'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.patch(reverse('register-list'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.delete(reverse('register-list'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_different_password(self):
+        response = self.client.post(reverse('register-list'), self.different_password)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.different_password_error)
+
+    def test_weak_password(self):
+        response = self.client.post(reverse('register-list'), self.weak_password)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.weak_password_error)
+
+    def test_email_exist(self):
+        response = self.client.post(reverse('register-list'), self.dublicate_email)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.dublicate_email_error)
+
+    def test_register(self):
+        response = self.client.post(reverse('register-list'), self.new_user[0])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        message = mail.outbox[0].body
+        activation_link = self.find_link(message)
+        self.assertEqual(len(activation_link), 1)
+        response = self.client.get(activation_link[0])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user = User.objects.last()
+        currency = CurrencyOwner.objects.get(owner=user).currency.name
+        self.assertEqual(currency, self.new_user[0]['currency'])
+
+        response = self.client.post(reverse('register-list'), self.new_user[1])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.last()
+        currency = CurrencyOwner.objects.get(owner=user).currency.name
+        self.assertEqual(currency, self.new_user[1]['currency'])

@@ -131,6 +131,8 @@ DATABASES = {
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
+AUTH_USER_MODEL = "debt_manager_backend_api.UniqEmailUser"
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -184,3 +186,10 @@ OAUTH2_PROVIDER = {
     # this is the list of available scopes
     'SCOPES': {'read': 'Read scope', 'write': 'Write scope', 'groups': 'Access to your groups'}
 }
+
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'klasd4000@gmail.com'
+EMAIL_HOST_PASSWORD = 'VaginaLososina6uee3sgp'
+EMAIL_FROM = 'debtmanager@etlgr.com'
+EMAIL_PORT = 587

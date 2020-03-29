@@ -15,11 +15,12 @@ Including another URLconf
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import DebtorViewSet, TransactionViewSet
+from .views import DebtorViewSet, TransactionViewSet, RegisterViewSet
 from rest_framework_nested import routers
 
 router_v1 = DefaultRouter()
 router_v1.register('debtor', DebtorViewSet, basename='debtor')
+router_v1.register('register', RegisterViewSet, basename='register')
 transaction_router = routers.NestedDefaultRouter(router_v1, 'debtor', lookup='debtor')
 transaction_router.register('transaction', TransactionViewSet, basename='debtor-transaction')
 

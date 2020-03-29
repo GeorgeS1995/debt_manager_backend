@@ -1,11 +1,15 @@
 import logging
+from django.contrib.auth import get_user_model
 from django.db.models import Sum
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope
 from rest_framework.response import Response
 from rest_framework import permissions, status
-from rest_framework import viewsets
-from .models import Debtor, Transaction, Currency
-from .serializers import DebtorSerializer, TransactionSerializer
+from rest_framework.viewsets import GenericViewSet
+from rest_framework import viewsets, mixins
+from .models import Debtor, Transaction, CurrencyOwner
+from .serializers import DebtorSerializer, TransactionSerializer, UserRegistrationSerializer
 from .pagination import DebtorPagination, TransactionPagination
 from .permissions import DebtorPermission
 from rest_framework.decorators import action
@@ -14,9 +18,14 @@ from django.http import HttpResponse
 import mimetypes
 import xlsxwriter
 from io import BytesIO
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.contrib.sites.shortcuts import get_current_site
+from .tokens import account_activation_token
+from django.conf import settings
 
 lh = logging.getLogger('django')
-
+User = get_user_model()
 
 # Create your views here.
 
@@ -35,7 +44,7 @@ class ReportGenerator:
             raise IndexError
         debtor_name = tr_list[0].debtor.name
         balance = tr_list.aggregate(Sum('sum'))
-        currency = Currency.objects.get(owner=tr_list[0].debtor.owner, current=True).name
+        currency = CurrencyOwner.objects.get(owner=tr_list[0].debtor.owner, current=True).currency.name
         output = BytesIO()
         workbook = xlsxwriter.Workbook(output, options={'default_format_properties': {'align': 'justify'}})
         worksheet = workbook.add_worksheet('balance sheet report')
@@ -146,3 +155,36 @@ class TransactionViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=['is_active'])
+
+
+class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
+    serializer_class = UserRegistrationSerializer
+    queryset = User.objects.all()
+    permission_classes = []
+
+    def perform_create(self, serializer):
+        new_user = serializer.save()
+        current_site = get_current_site(self.request)
+        message = render_to_string('acc_active_email.html', {
+            'user': new_user.username,
+            'domain': current_site.domain,
+            'uid': urlsafe_base64_encode(force_bytes(new_user.pk)),
+            'token': account_activation_token.make_token(new_user),
+        })
+        send_mail('debtor manager registration', message, settings.EMAIL_FROM,[new_user.email])
+
+    @action(detail=False, methods=['get'],
+            url_path='activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})',
+            url_name='activate')
+    def activate_user(self, request, uidb64, token):
+        try:
+            uid = urlsafe_base64_decode(uidb64)
+            user = User.objects.get(pk=uid)
+        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+        if user is not None and account_activation_token.check_token(user, token):
+            user.is_active = True
+            user.save()
+            return Response(status=status.HTTP_200_OK)
+        else:
+            raise serializers.ValidationError('Activation link is invalid!')
