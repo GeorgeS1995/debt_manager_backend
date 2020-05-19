@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import datetime
 import os
 import sys
+from corsheaders.defaults import default_methods
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +23,7 @@ format_time = now.strftime("%Y%m%d%H%M%S")
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '-_##krnt^zxn6&6y!8)0v#+y4h$=p-w9&sfxazta)rh&a-kv0d'
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -80,6 +81,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'debt_manager_backend_api.apps.DebtManagerBackendApiConfig',
     'oauth2_provider',
@@ -93,6 +95,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'debt_manager_backend.urls'
@@ -115,7 +118,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'debt_manager_backend.wsgi.application'
 
-
+CORS_ORIGIN_REGEX_WHITELIST = [
+    r"http:\/\/localhost:?[\d]{0,5}",
+]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = list(default_methods)
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
