@@ -5,7 +5,7 @@ from .models import Debtor, Transaction, Currency, CurrencyOwner
 from django.db.models import Sum
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.db import IntegrityError, transaction
+from django.db import transaction
 
 lh = logging.getLogger('django')
 User = get_user_model()
@@ -84,3 +84,5 @@ class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
         return self._validated_data
 
 
+class RecaptchaRequestSerializer(serializers.Serializer):
+    response = serializers.CharField()

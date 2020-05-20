@@ -13,6 +13,7 @@ from django.conf import settings
 import xlrd
 from django.core import mail
 import re
+from .views import RecaptchaAPIView
 
 User = get_user_model()
 
@@ -485,7 +486,7 @@ class RegisterTestCase(ApiUserTestClient):
             "password1": "SlojniyParol123",
             "password2": "SlojniyParol123",
             "currency": "dollars"
-        },{
+        }, {
             "username": "test4",
             "first_name": "test",
             "last_name": "test",
@@ -526,10 +527,10 @@ class RegisterTestCase(ApiUserTestClient):
         }
 
         self.dublicate_email_error = {
-                                        "email": [
-                                            "user with this email already exists."
-                                        ]
-                                    }
+            "email": [
+                "user with this email already exists."
+            ]
+        }
 
         self.different_password_error = {
             "non_field_errors": [
@@ -593,3 +594,83 @@ class RegisterTestCase(ApiUserTestClient):
         user = User.objects.last()
         currency = CurrencyOwner.objects.get(owner=user).currency.name
         self.assertEqual(currency, self.new_user[1]['currency'])
+
+
+class RecaptchaAPIViewTestCase(APITestCase):
+    def setUp(self) -> None:
+        self.google_response_parser = RecaptchaAPIView().google_response_parser
+        self.wrong_json_input = {
+            "token": "token"
+        }
+
+        self.wrong_json_output = {
+            "response": [
+                "This field is required."
+            ]
+        }
+
+        self.error_recaptcha_server = {
+            "success": False,
+            "error-codes": [
+                "Error connecting to recaptcha check server"
+            ]
+        }
+
+        self.google_unsuccess_token_check = {
+            "success": False,
+            "error-codes": [
+                "invalid-input-response"
+            ]
+        }
+
+        self.google_unsuccess_token_check_input = {
+            "success": True,
+            "score": 0.1,
+        }
+
+        self.google_unsuccess_token_check_output = {
+            "success": False,
+            "score": 0.1,
+        }
+
+        self.google_success_token_check = {
+            "success": True,
+            "score": 0.3,
+        }
+
+        settings.GOOGLE_RECAPTCHA_THRESHOLD_SCORE = 0.2
+
+    def test_allowed_methods(self):
+        response = self.client.get(reverse('captcha'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.put(reverse('captcha'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.patch(reverse('captcha'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        response = self.client.delete(reverse('captcha'))
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_wrong_json(self):
+        response = self.client.post(reverse('captcha'), data=self.wrong_json_input, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.wrong_json_output)
+
+    def test_google_response_parser_recaptcha_server_error(self):
+        r, http_status = self.google_response_parser('')
+        self.assertEqual(http_status, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r, self.error_recaptcha_server)
+
+    def test_google_response_parser_token_error(self):
+        r, http_status = self.google_response_parser(self.google_unsuccess_token_check)
+        self.assertEqual(http_status, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r, self.google_unsuccess_token_check)
+
+    def test_google_response_parser_weak_score(self):
+        r, http_status = self.google_response_parser(self.google_unsuccess_token_check_input)
+        self.assertEqual(http_status, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r, self.google_unsuccess_token_check_output)
+
+    def test_google_response_parser_success(self):
+        r, http_status = self.google_response_parser(self.google_success_token_check)
+        self.assertEqual(http_status, status.HTTP_200_OK)
+        self.assertEqual(r, self.google_success_token_check)

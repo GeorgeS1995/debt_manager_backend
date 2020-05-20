@@ -23,7 +23,8 @@ format_time = now.strftime("%Y%m%d%H%M%S")
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-
+GOOGLE_RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify'
+GOOGLE_RECAPTCHA_THRESHOLD_SCORE = 0.5
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True

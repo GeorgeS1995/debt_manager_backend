@@ -15,7 +15,7 @@ Including another URLconf
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import DebtorViewSet, TransactionViewSet, RegisterViewSet
+from .views import DebtorViewSet, TransactionViewSet, RegisterViewSet, RecaptchaAPIView
 from rest_framework_nested import routers
 
 router_v1 = DefaultRouter()
@@ -25,6 +25,7 @@ transaction_router = routers.NestedDefaultRouter(router_v1, 'debtor', lookup='de
 transaction_router.register('transaction', TransactionViewSet, basename='debtor-transaction')
 
 urlpatterns = [
+    path('recaptcha-v3/', RecaptchaAPIView.as_view(), name='captcha'),
     path('v1/', include(router_v1.urls)),
     path('v1/', include(transaction_router.urls)),
     path('auth/', include('oauth2_provider.urls', namespace='oauth2_provider')),
