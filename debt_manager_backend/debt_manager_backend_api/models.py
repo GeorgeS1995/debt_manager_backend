@@ -30,6 +30,6 @@ class Debtor(models.Model):
 class Transaction(models.Model):
     date = models.DateField(default=date.today)
     sum = models.FloatField()
-    comment = models.TextField()
+    comment = models.TextField(blank=True)
     debtor = models.ForeignKey(Debtor, on_delete=models.DO_NOTHING)
     is_active = models.BooleanField(default=True)

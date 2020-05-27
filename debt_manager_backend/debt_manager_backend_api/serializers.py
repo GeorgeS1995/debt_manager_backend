@@ -32,6 +32,11 @@ class TransactionSerializer(serializers.HyperlinkedModelSerializer):
         model = Transaction
         fields = ['id', 'date', 'sum', 'comment']
 
+    def validate_sum(self, value):
+        if not value:
+            raise serializers.ValidationError('zero amount')
+        return value
+
     def create(self, validated_data):
         debtor = self.context['request'].parser_context['debtor']
         validated_data['debtor'] = Debtor.objects.get(id=debtor.id)

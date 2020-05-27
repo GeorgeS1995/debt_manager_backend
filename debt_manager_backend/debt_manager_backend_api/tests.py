@@ -426,6 +426,18 @@ class TransactionViewSetTestCase(ApiUserTestClient):
             ]
         }
 
+        self.zero_sum_transaction_request = {
+            "date": "2020-04-04",
+            "sum": 0.0,
+            "comment": "test renew comment"
+        }
+
+        self.zero_sum_error = {
+            "sum": [
+                "zero amount"
+            ]
+        }
+
     def test_get_transaction_list(self):
         response = self.client.get(reverse('debtor-transaction-list', args=(1,)), {'page': 1, 'size': 2})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -471,6 +483,15 @@ class TransactionViewSetTestCase(ApiUserTestClient):
         response = self.client.get(reverse('debtor-transaction-list', args=(1,)), {'page': 1, 'size': 2})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, self.transaction_list_delete)
+
+    def test_transaction_zero_sum(self):
+        response = self.client.post(reverse('debtor-transaction-list', args=(1,)), self.zero_sum_transaction_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.zero_sum_error)
+
+        response = self.client.put(reverse('debtor-transaction-detail', args=(1, 1)), self.zero_sum_transaction_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.zero_sum_error)
 
 
 class RegisterTestCase(ApiUserTestClient):
