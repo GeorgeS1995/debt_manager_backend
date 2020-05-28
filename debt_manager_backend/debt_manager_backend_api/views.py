@@ -16,7 +16,6 @@ from .serializers import DebtorSerializer, TransactionSerializer, UserRegistrati
 from .pagination import DebtorPagination, TransactionPagination
 from .permissions import DebtorPermission
 from rest_framework.decorators import action
-from rest_framework import serializers
 from django.http import HttpResponse
 import mimetypes
 import xlsxwriter
@@ -99,7 +98,7 @@ class DebtorViewSet(viewsets.ModelViewSet):
             ext = request.GET['extension']
         except KeyError:
             lh.error('missing get parameter: extension')
-            raise serializers.ValidationError('missing get parameter: extension')
+            raise exceptions.ParseError(detail='missing get parameter: extension')
         try:
             debtor = Debtor.objects.get(id=pk)
         except Debtor.DoesNotExist:
@@ -109,10 +108,10 @@ class DebtorViewSet(viewsets.ModelViewSet):
             report_obj = ReportGenerator(ext, debtor).get_report()
         except KeyError:
             lh.error(f'report format not supported: {ext}')
-            raise serializers.ValidationError(f'report format not supported: {ext}')
+            raise exceptions.UnsupportedMediaType(ext)
         except IndexError:
             lh.error('The debtor has no transactions')
-            raise serializers.ValidationError('The debtor has no transactions')
+            raise exceptions.NotFound(detail='The debtor has no transactions')
         report_obj.seek(0)
         return HttpResponse(report_obj.read(), mimetypes.types_map[f'.{ext}'])
 
@@ -123,7 +122,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
     pagination_class = TransactionPagination
 
     def call_debtor_check(self):
-        debtor = Debtor.objects.get(id=self.kwargs['debtor_pk'])
+        try:
+            debtor = Debtor.objects.get(id=self.kwargs['debtor_pk'])
+        except Debtor.DoesNotExist:
+            raise exceptions.NotFound()
         self.check_object_permissions(self.request, debtor)
         return debtor
 
@@ -197,7 +199,7 @@ class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
             user.save()
             return Response(status=status.HTTP_200_OK)
         else:
-            raise serializers.ValidationError('Activation link is invalid!')
+            raise exceptions.PermissionDenied(detail='Activation link is invalid!')
 
 
 class RecaptchaAPIView(APIView):
@@ -208,7 +210,7 @@ class RecaptchaAPIView(APIView):
         data = JSONParser().parse(stream)
         serialized = RecaptchaRequestSerializer(data=data)
         if not serialized.is_valid():
-            raise serializers.ValidationError(serialized.errors)
+            raise exceptions.ValidationError(serialized.errors)
         serialized.validated_data['secret'] = settings.GOOGLE_RECAPTCHA_SECRET_KEY
         google_response = self.verify_captcha(serialized.validated_data)
         response, http_status = self.google_response_parser(google_response)

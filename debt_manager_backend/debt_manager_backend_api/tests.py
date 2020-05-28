@@ -210,20 +210,20 @@ class DebtorViewSetTestCase(ApiUserTestClient):
             ]
         }
 
-        self.missing_get_parameter = [
-            'missing get parameter: extension'
-        ]
+        self.missing_get_parameter = {
+            "detail": 'missing get parameter: extension'
+        }
 
-        self.format_not_supported = [
-            'report format not supported: exe'
-        ]
+        self.format_not_supported = {
+            "detail": 'Unsupported media type "exe" in request.'
+        }
 
-        self.debtor_without_transaction = [
-            'The debtor has no transactions'
-        ]
+        self.debtor_without_transaction = {
+            "detail": 'The debtor has no transactions'
+        }
 
         self.report_owner_error = {
-            "detail": "You are not the owner of the object or object does not exist"
+            "detail": 'You are not the owner of the object'
         }
 
         # select extension for testing
@@ -324,12 +324,12 @@ class DebtorViewSetTestCase(ApiUserTestClient):
 
     def test_report_not_supported_format(self):
         response = self.client.get(reverse('debtor-report', args=(1,)), {'extension': 'exe'})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
         self.assertEqual(response.data, self.format_not_supported)
 
     def test_report_debtor_has_not_transaction(self):
         response = self.client.get(reverse('debtor-report', args=(5,)), {'extension': 'xlsx'})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data, self.debtor_without_transaction)
 
     def test_report_xlsx(self):
@@ -375,7 +375,7 @@ class TransactionViewSetTestCase(ApiUserTestClient):
         }
 
         self.deleted_debtor = {
-            "detail": "You are not the owner of the object or object does not exist"
+            "detail": "You are not the owner of the object"
         }
 
         self.update_transaction_request = {
@@ -576,6 +576,10 @@ class RegisterTestCase(ApiUserTestClient):
             ]
         }
 
+        self.wrong_activation_link_error = {
+            "detail": "Activation link is invalid!"
+        }
+
     def find_link(self, message):
         regex = 'http:\/\/testserver\/api\/v1\/register\/activate\/' \
                 '(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
@@ -624,6 +628,14 @@ class RegisterTestCase(ApiUserTestClient):
         user = User.objects.last()
         currency = CurrencyOwner.objects.get(owner=user).currency.name
         self.assertEqual(currency, self.new_user[1]['currency'])
+
+    def test_wrong_activation_link(self):
+        response = self.client.post(reverse('register-list'), self.new_user[0])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        message = mail.outbox[0].body
+        activation_link = self.find_link(message)
+        response = self.client.get(activation_link[0][:-2] + "/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class RecaptchaAPIViewTestCase(APITestCase):
