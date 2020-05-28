@@ -7,7 +7,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
-from rest_framework import permissions, status
+from rest_framework import permissions, status, exceptions
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.views import APIView
 from rest_framework import viewsets, mixins
@@ -82,7 +82,7 @@ class ReportGenerator:
 
 class DebtorViewSet(viewsets.ModelViewSet):
     serializer_class = DebtorSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope, DebtorPermission]
     pagination_class = DebtorPagination
 
     def get_queryset(self):
@@ -101,7 +101,12 @@ class DebtorViewSet(viewsets.ModelViewSet):
             lh.error('missing get parameter: extension')
             raise serializers.ValidationError('missing get parameter: extension')
         try:
-            report_obj = ReportGenerator(ext, pk).get_report()
+            debtor = Debtor.objects.get(id=pk)
+        except Debtor.DoesNotExist:
+            raise exceptions.NotFound()
+        self.check_object_permissions(self.request, debtor)
+        try:
+            report_obj = ReportGenerator(ext, debtor).get_report()
         except KeyError:
             lh.error(f'report format not supported: {ext}')
             raise serializers.ValidationError(f'report format not supported: {ext}')

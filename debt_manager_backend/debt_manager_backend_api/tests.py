@@ -222,6 +222,10 @@ class DebtorViewSetTestCase(ApiUserTestClient):
             'The debtor has no transactions'
         ]
 
+        self.report_owner_error = {
+            "detail": "You are not the owner of the object or object does not exist"
+        }
+
         # select extension for testing
         self.switch_extention_func = {'xlsx': self.xlsx_chech}
 
@@ -307,6 +311,11 @@ class DebtorViewSetTestCase(ApiUserTestClient):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         response = self.client.put(reverse('debtor-report', args=(1,)), {'extension': 'xlsx'})
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_report_owner_error(self):
+        response = self.client.get(reverse('debtor-report', args=(4,)), {'extension': 'xlsx'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data, self.report_owner_error)
 
     def test_report_missing_extension_error(self):
         response = self.client.get(reverse('debtor-report', args=(1,)))
