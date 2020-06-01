@@ -113,6 +113,11 @@ class DebtorViewSet(viewsets.ModelViewSet):
             lh.error('The debtor has no transactions')
             raise exceptions.NotFound(detail='The debtor has no transactions')
         report_obj.seek(0)
+        try:
+            mimetypes.types_map[f'.{ext}']
+        except KeyError:
+            lh.error('mimetype is not in mime.types file or windows registry')
+            raise exceptions.UnsupportedMediaType(ext)
         return HttpResponse(report_obj.read(), mimetypes.types_map[f'.{ext}'])
 
 
