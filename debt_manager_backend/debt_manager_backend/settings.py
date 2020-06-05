@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'drf_yasg',
     'rest_framework',
     'debt_manager_backend_api.apps.DebtManagerBackendApiConfig',
     'oauth2_provider',
@@ -184,10 +185,28 @@ REST_FRAMEWORK = {
 }
 
 OAUTH2_PROVIDER = {
-    # parses OAuth2 data from application/json requests
-    'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore',
     # this is the list of available scopes
     'SCOPES': {'read': 'Read scope', 'write': 'Write scope', 'groups': 'Access to your groups'}
+}
+
+SWAGGER_SETTINGS = {
+   'USE_SESSION_AUTH': False,
+   'SECURITY_DEFINITIONS': {
+      'Your App API - Swagger': {
+         'type': 'oauth2',
+         'authorizationUrl': '/api/auth/authorize/',
+         'tokenUrl': '/api/auth/token/',
+         'flow': 'password',
+         'scopes': {
+          'read:groups': 'read groups',
+         }
+      }
+   },
+   'OAUTH2_CONFIG': {
+      'clientId': 'TPFtuXnX9tYAlBDJHuruCxTi8H9KW8q55LTRXC8w',
+      'clientSecret': 'b2oizQoLy7bprvyFfarxj6RzFymbFPfUsmAaQqfGpRbHOWajwGAbOefDjcbbbw0rvTZtk2qTfXH4USlxNgg4LWdWJtdpZvYrgVBTkiAnlhh0VJGYx5fqwOJFfWTlpV8o',
+      'appName': 'swagger'
+   },
 }
 
 EMAIL_USE_TLS = True

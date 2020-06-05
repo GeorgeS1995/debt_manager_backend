@@ -1,18 +1,19 @@
-import io
 import logging
+from datetime import datetime
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from drf_yasg import openapi
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope
-from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 from rest_framework import permissions, status, exceptions
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.views import APIView
 from rest_framework import viewsets, mixins
 from .models import Debtor, Transaction, CurrencyOwner
-from .serializers import DebtorSerializer, TransactionSerializer, UserRegistrationSerializer, RecaptchaRequestSerializer
+from .serializers import DebtorSerializer, TransactionSerializer, UserRegistrationSerializer, \
+    RecaptchaRequestSerializer, RecaptchaResponseSerializer
 from .pagination import DebtorPagination, TransactionPagination
 from .permissions import DebtorPermission
 from rest_framework.decorators import action
@@ -26,6 +27,7 @@ from django.template.loader import render_to_string
 from django.contrib.sites.shortcuts import get_current_site
 from .tokens import account_activation_token
 from django.conf import settings
+from drf_yasg.utils import swagger_auto_schema
 
 lh = logging.getLogger('django')
 User = get_user_model()
@@ -37,8 +39,9 @@ class ReportGenerator:
 
     def __init__(self, ext, pk):
         extension = {'xlsx': self.xlsx_report}
+        self.debtor = pk
         try:
-            self.generated_report = extension[ext](pk)
+            self._report_generator = extension[ext]
         except KeyError:
             raise KeyError
 
@@ -76,7 +79,7 @@ class ReportGenerator:
         return output
 
     def get_report(self):
-        return self.generated_report
+        return self._report_generator(self.debtor)
 
 
 class DebtorViewSet(viewsets.ModelViewSet):
@@ -85,6 +88,9 @@ class DebtorViewSet(viewsets.ModelViewSet):
     pagination_class = DebtorPagination
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            # queryset just for schema generation metadata
+            return Debtor.objects.none()
         return Debtor.objects.filter(is_active=True, owner=self.request.user).order_by('id')
 
     def perform_destroy(self, instance):
@@ -92,6 +98,12 @@ class DebtorViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['is_active'])
         Transaction.objects.filter(debtor=instance).update(is_active=False)
 
+    @swagger_auto_schema(manual_parameters=[openapi.Parameter('extension', openapi.IN_QUERY,
+                                                              description="report file extention",
+                                                              type=openapi.TYPE_STRING,
+                                                              required=True)],
+                         responses={200: openapi.Response('Report file',
+                                                          schema=openapi.Schema(type=openapi.TYPE_FILE))})
     @action(detail=True, methods=['get'], url_path='report', url_name='report')
     def get_file_report(self, request, pk=None):
         try:
@@ -118,11 +130,14 @@ class DebtorViewSet(viewsets.ModelViewSet):
         except KeyError:
             lh.error('mimetype is not in mime.types file or windows registry')
             raise exceptions.UnsupportedMediaType(ext)
-        return HttpResponse(report_obj.read(), mimetypes.types_map[f'.{ext}'])
+        response = HttpResponse(report_obj.read(), mimetypes.types_map[f'.{ext}'])
+        report_date = datetime.now().strftime('%d-%m_%Y')
+        response['Content-Disposition'] = f'attachment; filename="report_{report_date}.{ext}"'
+        return response
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope, DebtorPermission]
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     serializer_class = TransactionSerializer
     pagination_class = TransactionPagination
 
@@ -131,10 +146,17 @@ class TransactionViewSet(viewsets.ModelViewSet):
             debtor = Debtor.objects.get(id=self.kwargs['debtor_pk'])
         except Debtor.DoesNotExist:
             raise exceptions.NotFound()
-        self.check_object_permissions(self.request, debtor)
+        debtor_permission_inst = DebtorPermission()
+        if not debtor_permission_inst.has_object_permission(self.request, self, debtor):
+            self.permission_denied(
+                self.request, message=getattr(DebtorPermission, 'message', None)
+            )
         return debtor
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            # queryset just for schema generation metadata
+            return Transaction.objects.none()
         debtor = self.call_debtor_check()
         # add context using in paginator class
         self.request.parser_context['debtor'] = debtor
@@ -177,7 +199,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
 class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
     serializer_class = UserRegistrationSerializer
     queryset = User.objects.all()
-    permission_classes = []
+    permission_classes = [permissions.AllowAny]
 
     def perform_create(self, serializer):
         new_user = serializer.save()
@@ -190,6 +212,7 @@ class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
         })
         send_mail('debtor manager registration', message, settings.EMAIL_FROM, [new_user.email])
 
+    @swagger_auto_schema(auto_schema=None)
     @action(detail=False, methods=['get'],
             url_path='activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})',
             url_name='activate')
@@ -208,12 +231,11 @@ class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
 
 
 class RecaptchaAPIView(APIView):
-    permission_classes = []
+    permission_classes = [permissions.AllowAny]
 
+    @swagger_auto_schema(request_body=RecaptchaRequestSerializer, responses={200: RecaptchaResponseSerializer})
     def post(self, request, *args, **kwargs):
-        stream = io.BytesIO(request.body)
-        data = JSONParser().parse(stream)
-        serialized = RecaptchaRequestSerializer(data=data)
+        serialized = RecaptchaRequestSerializer(data=request.data)
         if not serialized.is_valid():
             raise exceptions.ValidationError(serialized.errors)
         serialized.validated_data['secret'] = settings.GOOGLE_RECAPTCHA_SECRET_KEY

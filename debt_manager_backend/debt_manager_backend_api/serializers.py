@@ -10,6 +10,7 @@ from django.db import transaction
 lh = logging.getLogger('django')
 User = get_user_model()
 
+
 class DebtorSerializer(serializers.HyperlinkedModelSerializer):
     balance = serializers.SerializerMethodField()
 
@@ -91,3 +92,10 @@ class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
 
 class RecaptchaRequestSerializer(serializers.Serializer):
     response = serializers.CharField()
+
+
+class RecaptchaResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    challenge_ts = serializers.DateTimeField()
+    hostname = serializers.CharField()
+    score = serializers.FloatField()
