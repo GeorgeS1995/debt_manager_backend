@@ -53,6 +53,16 @@ class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'currency']
 
+    def validate_username(self, value):
+        if User.objects.filter(is_active=True, username=value):
+            raise serializers.ValidationError('Not uniq username')
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(is_active=True, email=value):
+            raise serializers.ValidationError('Not uniq email')
+        return value
+
     def validate(self, data):
         if data['password1'] == data['password2']:
             try:
@@ -74,12 +84,7 @@ class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
             user.is_active = False
             user.set_password(password)
             user.save()
-            new_currency = Currency.objects.filter(name=currency)
-            if not new_currency.exists():
-                new_currency = Currency.objects.create(name=currency)
-                new_currency.save()
-            else:
-                new_currency = new_currency[0]
+            new_currency, created = Currency.objects.update_or_create(name=currency, defaults={'is_active': True})
             new_currency_owner = CurrencyOwner.objects.create(currency=new_currency, owner=user, current=True)
             new_currency_owner.save()
         return user

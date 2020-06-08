@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime
 from django.contrib.auth import get_user_model
-from django.db.models import Sum
+from django.db import transaction
+from django.db.models import Sum, Q
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from drf_yasg import openapi
@@ -223,11 +224,27 @@ class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
         except(TypeError, ValueError, OverflowError, User.DoesNotExist):
             user = None
         if user is not None and account_activation_token.check_token(user, token):
-            user.is_active = True
-            user.save()
+            self.user_confirmation(user)
             return Response(status=status.HTTP_200_OK)
         else:
             raise exceptions.PermissionDenied(detail='Activation link is invalid!')
+
+    def user_confirmation(self, user):
+        with transaction.atomic():
+            user.is_active = True
+            user.save()
+            user_to_delete = User.objects.filter(
+                (Q(username__iexact=user.username) | Q(email__iexact=user.email)),
+                is_active=False
+            )
+            currency_to_check = set()
+            for u in user_to_delete:
+                [currency_to_check.add(i.currency) for i in CurrencyOwner.objects.filter(owner=u)]
+                u.delete()
+            for cur in currency_to_check:
+                if not CurrencyOwner.objects.filter(currency=cur):
+                    cur.is_active = False
+                    cur.save()
 
 
 class RecaptchaAPIView(APIView):

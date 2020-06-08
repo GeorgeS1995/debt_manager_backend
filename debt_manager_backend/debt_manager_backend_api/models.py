@@ -7,7 +7,8 @@ from django.contrib.auth.models import AbstractUser
 # Create your models here.
 
 class UniqEmailUser(AbstractUser):
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
+    username = models.CharField(max_length=150)
 
 
 class Currency(models.Model):
@@ -16,8 +17,8 @@ class Currency(models.Model):
 
 
 class CurrencyOwner(models.Model):
-    currency = models.ForeignKey(Currency, on_delete=models.DO_NOTHING)
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING)
+    currency = models.ForeignKey(Currency, on_delete=models.CASCADE)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     current = models.BooleanField()
 
 

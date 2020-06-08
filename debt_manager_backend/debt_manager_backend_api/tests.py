@@ -1,3 +1,4 @@
+import json
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from oauth2_provider.models import AccessToken, Application
@@ -146,6 +147,64 @@ class ApiUserTestClient(APITestCase):
 
     def logout(self):
         self.token = None
+
+
+class AuthViewSetTestCase(ApiUserTestClient):
+
+    def setUp(self):
+        self.application = Application.objects.create(
+            name="Test Application 2",
+            client_id="client_id",
+            client_secret="client_secret",
+            user=self.user,
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_PASSWORD,
+        )
+
+        auth_test_user = User.objects.create_user('test_name', 'test@example.com', 'SlojniyParol')
+        auth_test_user.save()
+
+        self.auth_by_username = {
+            'grant_type': 'password',
+            'username': 'test_name',
+            'password': 'SlojniyParol',
+            'client_id': 'client_id',
+            'client_secret': 'client_secret'
+        }
+
+        self.auth_by_email = {
+            'grant_type': 'password',
+            'username': 'test@example.com',
+            'password': 'SlojniyParol',
+            'client_id': 'client_id',
+            'client_secret': 'client_secret'
+        }
+
+        self.auth_response = {"expires_in": 36000,
+                              "token_type": "Bearer",
+                              "scope": "read write groups"}
+
+    def test_authorize_by_username(self):
+        self.logout()
+        response = self.client.post(reverse('oauth2_provider:token'), data=self.auth_by_username)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = json.loads(response.content)
+        for k,v in response.items():
+            if k in ['access_token', 'refresh_token']:
+                self.assertTrue(re.match(r"[a-zA-Z0-9]{30}", v))
+                continue
+            self.assertEqual(self.auth_response[k], v)
+
+    def test_authorize_by_email(self):
+        self.logout()
+        response = self.client.post(reverse('oauth2_provider:token'), data=self.auth_by_email)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = json.loads(response.content)
+        for k,v in response.items():
+            if k in ['access_token', 'refresh_token']:
+                self.assertTrue(re.match(r"[a-zA-Z0-9]{30}", v))
+                continue
+            self.assertEqual(self.auth_response[k], v)
 
 
 class DebtorViewSetTestCase(ApiUserTestClient):
@@ -556,10 +615,14 @@ class RegisterTestCase(ApiUserTestClient):
             "currency": "dollars"
         }
 
-        self.dublicate_email_error = {
-            "email": [
-                "user with this email already exists."
-            ]
+        self.dublicate_username = {
+            "username": "test@test.com",
+            "first_name": "test",
+            "last_name": "test",
+            "email": "test1@test.com",
+            "password1": "123",
+            "password2": "123",
+            "currency": "dollars"
         }
 
         self.different_password_error = {
@@ -579,6 +642,48 @@ class RegisterTestCase(ApiUserTestClient):
         self.wrong_activation_link_error = {
             "detail": "Activation link is invalid!"
         }
+
+        self.not_uniq_username = {
+            "username": [
+                "Not uniq username"
+            ]
+        }
+
+        self.not_uniq_email = {
+            "email": [
+                "Not uniq email"
+            ]
+        }
+
+        self.same_data_registration_request = [
+            {
+                "username": "g1",
+                "first_name": "test",
+                "last_name": "test",
+                "email": "tes4@example.com",
+                "password1": "SlojniyParol123",
+                "password2": "SlojniyParol123",
+                "currency": "dollars"
+            },
+            {
+                "username": "g2",
+                "first_name": "test",
+                "last_name": "test",
+                "email": "tes4@example.com",
+                "password1": "SlojniyParol123",
+                "password2": "SlojniyParol123",
+                "currency": "rub"
+            },
+            {
+                "username": "g3",
+                "first_name": "test",
+                "last_name": "test",
+                "email": "tes4@example.com",
+                "password1": "SlojniyParol123",
+                "password2": "SlojniyParol123",
+                "currency": "euro"
+            }
+        ]
 
     def find_link(self, message):
         regex = 'http:\/\/testserver\/api\/v1\/register\/activate\/' \
@@ -606,10 +711,15 @@ class RegisterTestCase(ApiUserTestClient):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.weak_password_error)
 
-    def test_email_exist(self):
+    def test_not_uniq_email(self):
         response = self.client.post(reverse('register-list'), self.dublicate_email)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, self.dublicate_email_error)
+        self.assertEqual(response.data, self.not_uniq_email)
+
+    def test_not_uniq_username(self):
+        response = self.client.post(reverse('register-list'), self.dublicate_username)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, self.not_uniq_username)
 
     def test_register(self):
         response = self.client.post(reverse('register-list'), self.new_user[0])
@@ -636,6 +746,28 @@ class RegisterTestCase(ApiUserTestClient):
         activation_link = self.find_link(message)
         response = self.client.get(activation_link[0][:-2] + "/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_multiple_registration_request(self):
+        for user_data in self.same_data_registration_request:
+            response = self.client.post(reverse('register-list'), user_data)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        message = mail.outbox[0].body
+        activation_link = self.find_link(message)
+        self.assertEqual(len(activation_link), 1)
+        response = self.client.get(activation_link[0])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user = User.objects.last()
+        self.assertEqual(user.username, self.same_data_registration_request[0]['username'])
+        for user_data in self.same_data_registration_request:
+            if user_data['username'] == 'g1':
+                self.assertTrue(Currency.objects.get(name=user_data['currency']).is_active)
+                continue
+            self.assertFalse(Currency.objects.get(name=user_data['currency']).is_active)
+
+        for user_data in self.same_data_registration_request[1:]:
+            self.assertRaises(CurrencyOwner.DoesNotExist, CurrencyOwner.objects.get,
+                              currency__name=user_data['currency'])
 
 
 class RecaptchaAPIViewTestCase(APITestCase):
