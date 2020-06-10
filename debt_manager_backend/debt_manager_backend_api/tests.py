@@ -63,17 +63,7 @@ class ApiUserTestClient(APITestCase):
             authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
         )
 
-        cls.access_token = AccessToken.objects.create(
-            user=cls.user,
-            scope="read write",
-            expires=timezone.now() + timezone.timedelta(seconds=300),
-            token="secret-access-token-key",
-            application=cls.application
-        )
-        cls.access_token.save()
         cls.application.save()
-
-        cls.client.force_authenticate(user=cls.user, token=cls.access_token.token)
 
         currency = Currency.objects.create(name='руб')
         currency.save()
@@ -143,11 +133,19 @@ class ApiUserTestClient(APITestCase):
         super().tearDownClass()
 
     def login(self):
+        self.access_token = AccessToken.objects.create(
+            user=self.user,
+            scope="read write",
+            expires=timezone.now() + timezone.timedelta(seconds=300),
+            token="secret-access-token-key",
+            application=self.application
+        )
+        self.access_token.save()
         self.client.credentials(Authorization='Bearer {}'.format(self.access_token.token))
 
     def logout(self):
-        self.token = None
-
+        token = AccessToken.objects.all()
+        [t.delete() for t in token]
 
 class AuthViewSetTestCase(ApiUserTestClient):
 
@@ -562,10 +560,10 @@ class TransactionViewSetTestCase(ApiUserTestClient):
         self.assertEqual(response.data, self.zero_sum_error)
 
 
-class RegisterTestCase(ApiUserTestClient):
+class UserTestCase(ApiUserTestClient):
 
     def setUp(self):
-        super().setUp()
+        self.logout()
 
         self.new_user = [{
             "username": "test3",
@@ -685,44 +683,68 @@ class RegisterTestCase(ApiUserTestClient):
             }
         ]
 
+        self.current_user = {'username': 'test@test.com',
+                             'first_name': '',
+                             'last_name': '',
+                             'email': 'test@test.com',
+                             'currency': 'руб'}
+
     def find_link(self, message):
-        regex = 'http:\/\/testserver\/api\/v1\/register\/activate\/' \
+        regex = 'http:\/\/testserver\/api\/v1\/user\/activate\/' \
                 '(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
         register_link = re.findall(regex, message)
         return register_link
 
     def test_allowed_methods(self):
-        response = self.client.get(reverse('register-list'))
+        response = self.client.get(reverse('user-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        response = self.client.put(reverse('user-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        response = self.client.patch(reverse('user-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        response = self.client.delete(reverse('user-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        response = self.client.get(reverse('user-current'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.login()
+
+        response = self.client.get(reverse('user-list'))
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        response = self.client.put(reverse('register-list'))
+        response = self.client.put(reverse('user-list'))
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        response = self.client.patch(reverse('register-list'))
+        response = self.client.patch(reverse('user-list'))
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        response = self.client.delete(reverse('register-list'))
+        response = self.client.delete(reverse('user-list'))
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
+    def test_get_current_user(self):
+        self.login()
+        response = self.client.get(reverse('user-current'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, self.current_user)
+
     def test_different_password(self):
-        response = self.client.post(reverse('register-list'), self.different_password)
+        response = self.client.post(reverse('user-list'), self.different_password)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.different_password_error)
 
     def test_weak_password(self):
-        response = self.client.post(reverse('register-list'), self.weak_password)
+        response = self.client.post(reverse('user-list'), self.weak_password)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.weak_password_error)
 
     def test_not_uniq_email(self):
-        response = self.client.post(reverse('register-list'), self.dublicate_email)
+        response = self.client.post(reverse('user-list'), self.dublicate_email)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.not_uniq_email)
 
     def test_not_uniq_username(self):
-        response = self.client.post(reverse('register-list'), self.dublicate_username)
+        response = self.client.post(reverse('user-list'), self.dublicate_username)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, self.not_uniq_username)
 
     def test_register(self):
-        response = self.client.post(reverse('register-list'), self.new_user[0])
+        response = self.client.post(reverse('user-list'), self.new_user[0])
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         message = mail.outbox[0].body
         activation_link = self.find_link(message)
@@ -733,14 +755,14 @@ class RegisterTestCase(ApiUserTestClient):
         currency = CurrencyOwner.objects.get(owner=user).currency.name
         self.assertEqual(currency, self.new_user[0]['currency'])
 
-        response = self.client.post(reverse('register-list'), self.new_user[1])
+        response = self.client.post(reverse('user-list'), self.new_user[1])
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         user = User.objects.last()
         currency = CurrencyOwner.objects.get(owner=user).currency.name
         self.assertEqual(currency, self.new_user[1]['currency'])
 
     def test_wrong_activation_link(self):
-        response = self.client.post(reverse('register-list'), self.new_user[0])
+        response = self.client.post(reverse('user-list'), self.new_user[0])
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         message = mail.outbox[0].body
         activation_link = self.find_link(message)
@@ -749,7 +771,7 @@ class RegisterTestCase(ApiUserTestClient):
 
     def test_multiple_registration_request(self):
         for user_data in self.same_data_registration_request:
-            response = self.client.post(reverse('register-list'), user_data)
+            response = self.client.post(reverse('user-list'), user_data)
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         message = mail.outbox[0].body
         activation_link = self.find_link(message)

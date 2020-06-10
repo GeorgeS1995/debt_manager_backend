@@ -44,10 +44,22 @@ class TransactionSerializer(serializers.HyperlinkedModelSerializer):
         return Transaction.objects.create(**validated_data)
 
 
+class CurrencyRelatedField(serializers.RelatedField):
+
+    def get_attribute(self, instance):
+        return instance
+
+    def to_representation(self, value):
+        return CurrencyOwner.objects.filter(owner__username=value.username, current=True)[0].currency.name
+
+    def to_internal_value(self, data):
+        return data
+
+
 class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
     password1 = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
-    currency = serializers.CharField()
+    currency = CurrencyRelatedField(queryset=CurrencyOwner.objects.all())
 
     class Meta:
         model = User
@@ -89,10 +101,13 @@ class UserRegistrationSerializer(serializers.HyperlinkedModelSerializer):
             new_currency_owner.save()
         return user
 
-    def to_representation(self, instance):
-        del self._validated_data['password1']
-        del self._validated_data['password2']
-        return self._validated_data
+
+class SwaggerUserRegistrationSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    email = serializers.EmailField()
+    currency = serializers.CharField()
 
 
 class RecaptchaRequestSerializer(serializers.Serializer):

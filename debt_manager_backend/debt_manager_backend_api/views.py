@@ -14,9 +14,9 @@ from rest_framework.views import APIView
 from rest_framework import viewsets, mixins
 from .models import Debtor, Transaction, CurrencyOwner
 from .serializers import DebtorSerializer, TransactionSerializer, UserRegistrationSerializer, \
-    RecaptchaRequestSerializer, RecaptchaResponseSerializer
+    RecaptchaRequestSerializer, RecaptchaResponseSerializer, SwaggerUserRegistrationSerializer
 from .pagination import DebtorPagination, TransactionPagination
-from .permissions import DebtorPermission
+from .permissions import DebtorPermission, IsAuthenticatedOrCreateOnly
 from rest_framework.decorators import action
 from django.http import HttpResponse
 import mimetypes
@@ -29,6 +29,7 @@ from django.contrib.sites.shortcuts import get_current_site
 from .tokens import account_activation_token
 from django.conf import settings
 from drf_yasg.utils import swagger_auto_schema
+from .swagger import SwaggerAutoSchemaWithoutParam
 
 lh = logging.getLogger('django')
 User = get_user_model()
@@ -197,10 +198,17 @@ class TransactionViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['is_active'])
 
 
-class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
+class UserViewSet(GenericViewSet, mixins.CreateModelMixin):
     serializer_class = UserRegistrationSerializer
     queryset = User.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAuthenticatedOrCreateOnly]
+
+    @swagger_auto_schema(auto_schema=SwaggerAutoSchemaWithoutParam, extra_overrides={'exluded_params': ['page']},
+                         responses={200: SwaggerUserRegistrationSerializer})
+    @action(detail=False, methods=['get'], url_path='current', url_name='current')
+    def get_current_user(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         new_user = serializer.save()
@@ -216,7 +224,8 @@ class RegisterViewSet(mixins.CreateModelMixin, GenericViewSet):
     @swagger_auto_schema(auto_schema=None)
     @action(detail=False, methods=['get'],
             url_path='activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})',
-            url_name='activate')
+            url_name='activate',
+            permission_classes=[permissions.AllowAny])
     def activate_user(self, request, uidb64, token):
         try:
             uid = urlsafe_base64_decode(uidb64)
