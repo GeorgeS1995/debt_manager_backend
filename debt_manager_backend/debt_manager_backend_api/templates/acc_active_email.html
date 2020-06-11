@@ -1,7 +1,39 @@
-{% autoescape off %}
-Hi {{ user.username }},
+{% load inlinecss %}
+{% inlinecss "debt_manager_backend_api/css/simple.css" %}
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width"/>
+</head>
+<body>
+<table class="body-wrap">
+    <tr>
+        <td class="container">
 
-Please click on the link below to confirm your registration:
+            <!-- Message start -->
+            <table>
+                <tr>
+                    <td class="content">
 
-http://{{ domain }}{% url 'user-activate' uidb64=uid token=token %}
-{% endautoescape %}
+                        <h2>Здравствуйте, {{ user }}</h2>
+
+                        <p>Если вы получили это письмо, значит этот емаил был указан при регистрации в сервисе debt manager. Для активации аккаунта нажмите кнопку.</p>
+
+                        <table>
+                            <tr>
+                                <td align="center">
+                                    <p>
+                                        <a href="http://{{ domain }}{% url 'user-activate' uidb64=uid token=token %}" class="button">Активировать аккаунт</a>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+</table>
+</body>
+</html>
+{% endinlinecss %}

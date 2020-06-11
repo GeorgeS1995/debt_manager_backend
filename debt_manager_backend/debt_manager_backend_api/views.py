@@ -3,12 +3,14 @@ from datetime import datetime
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Sum, Q
+from django.template.response import SimpleTemplateResponse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from drf_yasg import openapi
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope
 from rest_framework.response import Response
 from rest_framework import permissions, status, exceptions
+from rest_framework.reverse import reverse
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.views import APIView
 from rest_framework import viewsets, mixins
@@ -23,7 +25,7 @@ import mimetypes
 import xlsxwriter
 import requests
 from io import BytesIO
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.contrib.sites.shortcuts import get_current_site
 from .tokens import account_activation_token
@@ -213,13 +215,20 @@ class UserViewSet(GenericViewSet, mixins.CreateModelMixin):
     def perform_create(self, serializer):
         new_user = serializer.save()
         current_site = get_current_site(self.request)
-        message = render_to_string('acc_active_email.html', {
+        html_content = render_to_string('acc_active_email.html', {
             'user': new_user.username,
             'domain': current_site.domain,
             'uid': urlsafe_base64_encode(force_bytes(new_user.pk)),
             'token': account_activation_token.make_token(new_user),
         })
-        send_mail('debtor manager registration', message, settings.EMAIL_FROM, [new_user.email])
+        reverse_user = reverse("user-activate", kwargs={"uidb64":urlsafe_base64_encode(force_bytes(new_user.pk)),
+                                                        "token": account_activation_token.make_token(new_user)})
+        text_content = f'Здравствуйте, {new_user.username}\r. Этот емаил был указан при регистрации в сервисе' \
+                       f' debt manager. Для активации аккаунта пройдите по ссылке: ' \
+                       f'http://{current_site.domain}{reverse_user}'
+        msg = EmailMultiAlternatives('debtor manager registration', text_content, settings.EMAIL_FROM, [new_user.email])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
 
     @swagger_auto_schema(auto_schema=None)
     @action(detail=False, methods=['get'],
@@ -234,9 +243,10 @@ class UserViewSet(GenericViewSet, mixins.CreateModelMixin):
             user = None
         if user is not None and account_activation_token.check_token(user, token):
             self.user_confirmation(user)
-            return Response(status=status.HTTP_200_OK)
+            return SimpleTemplateResponse('acc_activation_succes.html', context={'front_url': settings.FRONT_MAIN_PAGE},
+                                          status=status.HTTP_200_OK)
         else:
-            raise exceptions.PermissionDenied(detail='Activation link is invalid!')
+            return SimpleTemplateResponse('acc_activation_error.html', status=status.HTTP_403_FORBIDDEN)
 
     def user_confirmation(self, user):
         with transaction.atomic():

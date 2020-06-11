@@ -25,6 +25,7 @@ format_time = now.strftime("%Y%m%d%H%M%S")
 # SECURITY WARNING: keep the secret key used in production secret!
 GOOGLE_RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify'
 GOOGLE_RECAPTCHA_THRESHOLD_SCORE = 0.5
+FRONT_MAIN_PAGE = 'http://localhost:8080/'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -87,6 +88,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'debt_manager_backend_api.apps.DebtManagerBackendApiConfig',
     'oauth2_provider',
+    'django_inlinecss',
 ]
 
 MIDDLEWARE = [
@@ -172,6 +174,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'asserts')
 
 AUTHENTICATION_BACKENDS = ['debt_manager_backend_api.backends.EmailOrUsernameModelBackend']
 
