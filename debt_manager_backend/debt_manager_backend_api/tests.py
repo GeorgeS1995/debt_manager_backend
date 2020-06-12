@@ -147,6 +147,7 @@ class ApiUserTestClient(APITestCase):
         token = AccessToken.objects.all()
         [t.delete() for t in token]
 
+
 class AuthViewSetTestCase(ApiUserTestClient):
 
     def setUp(self):
@@ -187,7 +188,7 @@ class AuthViewSetTestCase(ApiUserTestClient):
         response = self.client.post(reverse('oauth2_provider:token'), data=self.auth_by_username)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response = json.loads(response.content)
-        for k,v in response.items():
+        for k, v in response.items():
             if k in ['access_token', 'refresh_token']:
                 self.assertTrue(re.match(r"[a-zA-Z0-9]{30}", v))
                 continue
@@ -198,7 +199,7 @@ class AuthViewSetTestCase(ApiUserTestClient):
         response = self.client.post(reverse('oauth2_provider:token'), data=self.auth_by_email)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response = json.loads(response.content)
-        for k,v in response.items():
+        for k, v in response.items():
             if k in ['access_token', 'refresh_token']:
                 self.assertTrue(re.match(r"[a-zA-Z0-9]{30}", v))
                 continue
@@ -224,6 +225,19 @@ class DebtorViewSetTestCase(ApiUserTestClient):
                 }
             ]
         }
+
+        self.debtor_searched_result = [
+            {
+                "id": 1,
+                "name": "test1",
+                "balance": 1.0
+            },
+            {
+                "id": 2,
+                "name": "test2",
+                "balance": 1.0
+            }
+        ]
 
         self.list_debtors_page_2 = {
             "next": 'http://testserver/api/v1/debtor/?page=3&size=1',
@@ -320,6 +334,11 @@ class DebtorViewSetTestCase(ApiUserTestClient):
         response = self.client.get(reverse('debtor-list'), {'page': 2, 'size': 1})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, self.list_debtors_page_2)
+
+    def test_get_debtor_list_search(self):
+        response = self.client.get(reverse('debtor-list'), {'search': 'test'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'], self.debtor_searched_result)
 
     def test_get_debtor_list_active_currency_not_set(self):
         CurrencyOwner.objects.filter(current=True).update(current=False)

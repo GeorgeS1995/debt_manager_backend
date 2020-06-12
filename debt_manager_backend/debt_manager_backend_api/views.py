@@ -9,7 +9,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from drf_yasg import openapi
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope
 from rest_framework.response import Response
-from rest_framework import permissions, status, exceptions
+from rest_framework import permissions, status, exceptions, filters
 from rest_framework.reverse import reverse
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.views import APIView
@@ -90,6 +90,8 @@ class DebtorViewSet(viewsets.ModelViewSet):
     serializer_class = DebtorSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope, DebtorPermission]
     pagination_class = DebtorPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name']
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
