@@ -15,6 +15,8 @@ import xlrd
 from django.core import mail
 import re
 from .views import RecaptchaAPIView
+from django.core import management
+from django.db import connection
 
 User = get_user_model()
 
@@ -129,8 +131,11 @@ class ApiUserTestClient(APITestCase):
 
     @classmethod
     def tearDownClass(cls):
-        shutil.rmtree(os.path.join(settings.BASE_DIR, 'test_temp'))
         super().tearDownClass()
+        reset_query = management.call_command('sqlsequencereset', 'debt_manager_backend_api', verbosity=0)
+        with connection.cursor() as cursor:
+            cursor.execute(reset_query)
+        shutil.rmtree(os.path.join(settings.BASE_DIR, 'test_temp'))
 
     def login(self):
         self.access_token = AccessToken.objects.create(

@@ -13,6 +13,7 @@ import datetime
 import os
 import sys
 from corsheaders.defaults import default_methods
+import json
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,9 +24,11 @@ format_time = now.strftime("%Y%m%d%H%M%S")
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.environ.get('SECRET_KEY')
+GOOGLE_RECAPTCHA_SECRET_KEY = os.environ.get('GOOGLE_RECAPTCHA_SECRET_KEY')
 GOOGLE_RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify'
 GOOGLE_RECAPTCHA_THRESHOLD_SCORE = 0.5
-FRONT_MAIN_PAGE = 'http://localhost:8080/'
+FRONT_MAIN_PAGE = os.environ.get('FRONT_MAIN_PAGE')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -91,6 +94,13 @@ INSTALLED_APPS = [
     'django_inlinecss',
 ]
 
+ADMINS = [
+    {
+        "name": "admin",
+        "email": "fordiftests@etlgr.com"
+    }
+]
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -122,9 +132,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'debt_manager_backend.wsgi.application'
 
-CORS_ORIGIN_REGEX_WHITELIST = [
-    r"http:\/\/localhost:?[\d]{0,5}",
-]
+CORS_ORIGIN_REGEX_WHITELIST = json.loads(os.environ.get('CORS_ORIGIN_REGEX_WHITELIST'))
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = list(default_methods)
 # Database
@@ -132,8 +140,12 @@ CORS_ALLOW_METHODS = list(default_methods)
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'debt_manager',
+        'USER': 'debt_manager',
+        'PASSWORD': 'some_password',
+        'HOST': 'db',
+        'PORT': 5432,
     }
 }
 
@@ -214,9 +226,9 @@ SWAGGER_SETTINGS = {
    },
 }
 
-EMAIL_USE_TLS = True
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_HOST_USER = 'klasd4000@gmail.com'
-EMAIL_HOST_PASSWORD = 'VaginaLososina6uee3sgp'
-EMAIL_FROM = 'debtmanager@etlgr.com'
-EMAIL_PORT = 587
+EMAIL_USE_TLS = bool(os.environ.get('EMAIL_USE_TLS'))
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_FROM = os.environ.get('EMAIL_FROM')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT'))
