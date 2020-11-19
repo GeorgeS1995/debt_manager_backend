@@ -31,7 +31,7 @@ GOOGLE_RECAPTCHA_THRESHOLD_SCORE = 0.5
 FRONT_MAIN_PAGE = os.environ.get('FRONT_MAIN_PAGE')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG')
 
 ALLOWED_HOSTS = []
 TESTING_RUN = sys.argv[1:2] == ['test']
@@ -96,8 +96,9 @@ INSTALLED_APPS = [
 
 ADMINS = [
     {
-        "name": "admin",
-        "email": "fordiftests@etlgr.com"
+        "name": os.environ.get('ADMIN_NAME'),
+        "email": os.environ.get('ADMIN_EMAIL'),
+        "password": os.environ.get('ADMIN_PASSWORD')
     }
 ]
 
@@ -131,7 +132,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'debt_manager_backend.wsgi.application'
-
 CORS_ORIGIN_REGEX_WHITELIST = json.loads(os.environ.get('CORS_ORIGIN_REGEX_WHITELIST'))
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = list(default_methods)
@@ -141,9 +141,9 @@ CORS_ALLOW_METHODS = list(default_methods)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'debt_manager',
-        'USER': 'debt_manager',
-        'PASSWORD': 'some_password',
+        'NAME': os.environ.get('POSTGRES_DB'),
+        'USER': os.environ.get('POSTGRES_USER'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
         'HOST': 'db',
         'PORT': 5432,
     }

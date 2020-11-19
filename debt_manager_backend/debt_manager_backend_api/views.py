@@ -34,6 +34,7 @@ from drf_yasg.utils import swagger_auto_schema
 from .swagger import SwaggerAutoSchemaWithoutParam
 
 lh = logging.getLogger('django')
+mimetypes.init()
 User = get_user_model()
 
 
@@ -234,7 +235,7 @@ class UserViewSet(GenericViewSet, mixins.CreateModelMixin):
 
     @swagger_auto_schema(auto_schema=None)
     @action(detail=False, methods=['get'],
-            url_path='activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})',
+            url_path='activate/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})',
             url_name='activate',
             permission_classes=[permissions.AllowAny])
     def activate_user(self, request, uidb64, token):

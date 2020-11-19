@@ -12,7 +12,7 @@ class Command(BaseCommand):
             for user in settings.ADMINS:
                 username = user['name']
                 email = user['email']
-                password = 'admin5'
+                password = user['password']
                 print('Creating account for %s (%s)' % (username, email))
                 admin = User.objects.create_superuser(email=email, username=username, password=password)
                 admin.is_active = True
