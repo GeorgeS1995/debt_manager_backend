@@ -14,6 +14,7 @@
 0. EMAIL_HOST_PASSWORD - пароль для пользователя smtp сервера
 0. EMAIL_FROM - почтовый адрес отправителя
 0. EMAIL_PORT - порт smtp сервера
+0. ALLOWED_HOSTS - список хостов/доменных имен, которые обслуживает django. Задается в json формате
 0. CORS_ORIGIN_REGEX_WHITELIST - список regexp выражений с разрешенными CORS url, обязательно экранирование \, привер значения `["http://localhost:?[\\d]{0,5}"]`
 0. POSTGRES_DB - имя бд проекта (должно быть одинаковым у сервисов debt-manager и db)
 0. POSTGRES_USER - имя пользователя бд проекта (должно быть одинаковым у сервисов debt-manager и db)
@@ -25,7 +26,7 @@
 
 ## После сборки проекта необходимо создать clientId и clientSecret
 0. Зайтив панель администартора django /admin/
-0. Создать новой приложение /api/auth/applications/
+0. Создать новое приложение /api/auth/applications/
     0. Name - произвольное имя приложения
     0. Client type - confidential
     0. Authorization grant type - password
