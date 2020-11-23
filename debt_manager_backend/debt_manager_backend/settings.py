@@ -33,7 +33,7 @@ FRONT_MAIN_PAGE = os.environ.get('FRONT_MAIN_PAGE')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = json.loads(os.environ.get('ALLOWED_HOSTS'))
 TESTING_RUN = sys.argv[1:2] == ['test']
 LOG_DIR = 'logs'
 if TESTING_RUN:
